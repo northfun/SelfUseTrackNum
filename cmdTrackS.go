@@ -14,35 +14,99 @@ const LOG_MAX_NUM = 1 << 8
 const LOG_FILE = "track.log"
 
 type StLogType struct {
-	def.QuestTrackCmd
-	time int64
+	User, Branch string
+	AddParams    map[string][]int
+	Time         int64
+}
+
+func (l *StLogType) init(rev *def.TrackRefresh) {
+	log.Time = time.Now().Unix()
+	log.Branch = rev.Branch
+	log.User = rev.User
 }
 
 func (l *StLogType) toString() string {
-	return fmt.Sprintf("%v,user:%v,branch:%v,cmd:%v,param:%v", l.time, l.User, l.Branch, l.Cmd, l.Param)
+	return fmt.Sprintf("%v,user:%v,branch:%v,addedParams:%v", l.Time, l.User, l.Branch, l.AddParams)
 }
 
-var trackNum map[string]map[int]bool // map[cmdNum]map[usedParam]
-type TrackLogType map[string][]*StLogType
+type UsedParamType map[int]*StLogType
+
+func (up *UsedParamType) addParams(p []int, plog *StLogType) {
+	for i := range p {
+		(*up)[p[i]] = plog
+	}
+}
+
+func (up *UsedParamType) checkParams(p []int) bool {
+	for i := range p {
+		if _, find := (*up)[p[i]]; find {
+			return false
+		}
+	}
+	return true
+}
+
+func (up *UsedParamType) paramSlc() []int {
+	slc := make([]int, len(*up))
+	var i int
+	for k, _ := range *up {
+		slc[i] = k
+		i++
+	}
+	return slc
+}
+
+var trackNum map[string]UsedParamType // map[cmdNum]map[usedParam]
+type TrackLogType map[string][]StLogType
 
 var trackLog TrackLogType // map[cmdNum][]logs
 
-func addLog(rev *def.QuestTrackCmd, send *def.AnswerTrackCmd) {
-	var logs []string
+// 返回冲突信息
+func refreshTrack(rev *def.TrackRefresh) (map[string][]string, map[string][]int) {
+	var logs []StLogType
 	var ok bool
 	var log StLogType
-	log.time = time.Now().Unix()
-	log.QuestTrackCmd = *rev
-	if logs, ok = trackLog[rev.Cmd]; !ok {
-		logs = make([]*StLogType, 0, LOG_MAX_NUM)
+	log.init(rev)
+	cflct := make(map[string][]string)
+	addok := make(map[string][]int)
+	for k, v := range rev.Data {
+		slc := make([]string)
+		okslc := make([]int)
+		if used, ok := trackNum[k]; ok {
+			for i := range v {
+				if info, ok := used[v[i]]; ok {
+					// conflict
+					slc = append(slc, info.toString())
+				} else {
+					okslc = append(okslc, v[i])
+					used.addParams([]int(v[i]))
+				}
+			}
+		} else {
+			for i := range v {
+				okslc = append(okslc, v[i])
+			}
+			var p UsedParamType
+			p.addParams(v)
+			trackNum[k] = p
+		}
+		if len(okslc) > 0 {
+			cflct[k] = slc
+		}
+		if len(slc) > 0 {
+			addok[k] = okslc
+		}
 	}
-	logs = append(logs, &log)
-	trackLog[rev.Cmd] = logs
-	saveData() // TODO
-	if send != nil {
-		send.Res = log.toString()
+	if len(addok) > 0 {
+		logs.AddParams = addok
+		if logs, ok = trackLog[rev.Cmd]; !ok {
+			logs = make([]StLogType, 0, LOG_MAX_NUM)
+		}
+		logs = append(logs, log)
+		trackLog[rev.Cmd] = logs
+		saveData() // TODO
 	}
-	//appendToFile(log)
+	return cflct, addok
 }
 
 func usedParam(cmd string) []int {
@@ -58,86 +122,45 @@ func usedParam(cmd string) []int {
 	return nil
 }
 
-func checkRevParams(rev *def.QuestTrackCmd) bool {
-	if pmap, ok := trackNum[rev.Cmd]; ok {
-		for i := range rev.Params {
-			if _, find := pmap[rev.Params[i]]; find {
-				return false
-			}
-		}
+func getParams(cmd string) UsedParamType {
+	if pmap, ok := trackNum[cmd]; ok {
+		return pmap
 	}
-	return true
-}
-
-func dealRev(rev *def.QuestTrackCmd, send *def.AnswerTrackCmd) {
-	if rev == nil || send == nil {
-		return
-	}
-	send.Cmd = rev.Cmd
-	var ok bool
-	switch rev.Serve {
-	case "Quest":
-		send.UsedParam = usedParam(rev.Cmd)
-	case "Add":
-		if curParam, ok := trackNum[rev.Cmd]; ok {
-			if curParam == LOG_MAX_NUM {
-				send.Res = fmt.Sprintf("[%v],starve:%v", def.COMMIT_LOG_ERR, send.Cmd)
-				return
-			}
-			if curParam+1 == rev.Param {
-				trackNum[rev.Cmd] = rev.Param
-				addLog(rev, send)
-			} else {
-				send.Res = fmt.Sprintf("[%v],cmd:%v,nextParam:%v", def.COMMIT_LOG_ERR, rev.Cmd, curParam+1)
-			}
-		} else if rev.Param == 1 {
-			trackNum[rev.Cmd] = 1
-			addLog(rev, send)
-		} else {
-			send.Res = fmt.Sprintf("[%v],cmd:%v,nextParam:%v", def.COMMIT_LOG_ERR, rev.Cmd, 1)
-		}
-	default:
-		send.Res = fmt.Sprintf("[%v],undefined serve:%v", rev.Serve)
-	}
+	return nil
 }
 
 func handleConnection(conn net.Conn) {
-	defer conn.Close()
-	bts := make([]byte, 1<<10)
-	num, err := conn.Read(bts)
-	if err != nil {
-		return
-	}
-	var rev def.QuestTrackCmd
-	json.Unmarshal(bts[:num], &rev)
-	var send def.AnswerTrackCmd
-
-	dealRev(&rev, &send)
-	if sendJson, err := json.Marshal(&send); err == nil {
-		fmt.Fprintf(conn, string(sendJson))
-	} else {
-		fmt.Println("send json err:", err)
-	}
-	fmt.Println("server done :", send)
+	var user TrackSUser
+	user.conn = conn
+	user.dealRev()
+	fmt.Println("deal from ", conn.RemoteAddr())
 }
 
-func initData() {
-	trackNum = make(map[string]int)
-	trackLog = make(map[string][]string)
+func initData() bool {
+	trackNum = make(map[string]UsedParamType)
+	trackLog = make(map[string][]StLogType)
 	if ddbuf, err := ioutil.ReadFile(LOG_FILE); err == nil {
-		if err := json.Unmarshal(ddbuf, trackLog); err == nil {
-			fmt.Println("initData unmarshal err")
-		} else {
-			fmt.Printf("unmarshal file-%v err:%v\n", LOG_FILE, err)
+		if err := json.Unmarshal(ddbuf, &trackLog); err != nil {
+			fmt.Printf("unmarshal file:%v err:%v\n", LOG_FILE, err)
+			return false
+		}
+		for k, v := range trackLog {
+			st := make(map[int]*StLogType)
+			for i := range v {
+				for j := range v[i].Params {
+					st[v[i].Params[j]] = &v[i]
+				}
+			}
+			trackNum[k] = st
 		}
 	} else {
 		fmt.Printf("read file-%v err:%v\n", LOG_FILE, err)
 	}
-
+	return true
 }
 
 func saveData() {
-	if bys, err := json.Marshal(trackLog); err == nil {
+	if bys, err := json.Marshal(&trackLog); err == nil {
 		ioutil.WriteFile(LOG_FILE, bys, 0644)
 	} else {
 		fmt.Println("json save err")
@@ -145,7 +168,9 @@ func saveData() {
 }
 
 func main() {
-	initData()
+	if !initData() {
+		return
+	}
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%v", def.SERVER_PORTS))
 	if err != nil {
 		panic(err)

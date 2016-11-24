@@ -11,6 +11,19 @@ import (
 	"tracks/def"
 )
 
+func parseParamSlc(p string) []int {
+	slc := strings.Split(p, ",")
+	pslc := make([]int, len(slc))
+	var err error
+	for i := range slc {
+		if pslc[i], err = strconv.Atoi(slc[i]); err != nil {
+			fmt.Println("parse params ", p, " error:", err)
+			return nil
+		}
+	}
+	return pslc
+}
+
 func parseArgs(send *def.QuestTrackCmd) bool {
 	if send == nil {
 		return false
@@ -35,7 +48,7 @@ func parseArgs(send *def.QuestTrackCmd) bool {
 		}
 		send.Serve = "Add"
 		send.Cmd = os.Args[2]
-		send.Param, _ = strconv.Atoi(os.Args[3])
+		send.Params = parseParamSlc(os.Args[3])
 	default:
 		return false
 	}
