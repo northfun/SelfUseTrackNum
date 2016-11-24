@@ -31,6 +31,7 @@ func askServer(m def.Message_itfc) {
 		fmt.Println("连接错误,addr:", saddr)
 		return
 	}
+	defer conn.Close()
 	bts := def.PackCmd(m)
 	_, err = conn.Write(bts)
 	result, err := ioutil.ReadAll(conn)
@@ -38,15 +39,41 @@ func askServer(m def.Message_itfc) {
 	dealRev(usage, ret)
 }
 
+func printConflicts(c map[string][]string) {
+	if len(c) == 0 {
+		return
+	}
+	fmt.Println("<<<---------------[WRN],some conflicts")
+	for k, v := range c {
+		fmt.Println(k)
+		for i := range v {
+			fmt.Println(v[i])
+		}
+	}
+	fmt.Println("[WRN],some conflicts---------------->>>")
+}
+
+func printAddOk(ok map[string][]uint) {
+	if len(ok) == 0 {
+		return
+	}
+	fmt.Println("========[OK],added ok params:========")
+	for k, v := range ok {
+		fmt.Println(k, v)
+	}
+}
+
 func dealRev(usage uint, data []byte) {
 	switch usage {
 	case def.MESSAGE_TYPE_RetRefresh:
 		var rev def.TrackRetRefresh
 		json.Unmarshal(data, &rev)
-		fmt.Println(rev)
+		printConflicts(rev.Conflict)
+		printAddOk(rev.AddOk)
 	case def.MESSAGE_TYPE_RetQuest:
 		var rev def.TrackRetQuest
 		json.Unmarshal(data, &rev)
-		fmt.Println(rev)
+		fmt.Println("-------------list-------------")
+		fmt.Println(rev.Data)
 	}
 }

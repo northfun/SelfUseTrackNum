@@ -11,4 +11,5 @@ func main() {
 	mp["ActCmd"] = []uint{5, 6}
 	ReqRefresh("ff", "tw", mp)
 	ReqQuest("User")
+	ReqQuest("")
 }

@@ -23,8 +23,7 @@ func (u *TrackSUser) do() {
 		fmt.Println("read err 1", err)
 		return
 	}
-	fmt.Println("deal:", num)
-	usage, data := def.UnPackCmd(bts)
+	usage, data := def.UnPackCmd(bts[:num])
 	u.dealRev(usage, data)
 }
 
@@ -32,7 +31,9 @@ func (u *TrackSUser) dealRev(usage uint, data []byte) {
 	switch usage {
 	case def.MESSAGE_TYPE_Quest:
 		var rev def.TrackQuest
-		json.Unmarshal(data, &rev)
+		if err := json.Unmarshal(data, &rev); err != nil {
+			fmt.Println("err:", err)
+		}
 		var send def.TrackRetQuest
 		send.Init()
 		if len(rev.Cmd) > 0 {
@@ -50,6 +51,9 @@ func (u *TrackSUser) dealRev(usage uint, data []byte) {
 		json.Unmarshal(data, &rev)
 		var send def.TrackRetRefresh
 		send.Init()
+		send.Conflict, send.AddOk = refreshTrack(&rev)
 		u.sendToMe(&send)
+	default:
+		fmt.Println("err usage")
 	}
 }

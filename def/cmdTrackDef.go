@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 )
 
 const SERVER_PORTS = 10777
@@ -30,8 +31,12 @@ func UnPackCmd(rev []byte) (uint, []byte) {
 func PackCmd(m Message_itfc) []byte {
 	var buf bytes.Buffer
 	BinWrite(&buf, uint16(m.Usage()))
-	if bts, err := json.Marshal(m); err == nil {
+	var bts []byte
+	var err error
+	if bts, err = json.Marshal(m); err == nil {
 		BinWrite(&buf, bts)
+	} else {
+		fmt.Println("pack cmd json err:%v", err)
 	}
 	return buf.Bytes()
 }

@@ -26,10 +26,22 @@ func (l *StLogType) init(rev *def.TrackRefresh) {
 }
 
 func (l *StLogType) toString() string {
-	return fmt.Sprintf("%v,user:%v,branch:%v,addedParams:%v", l.Time, l.User, l.Branch, l.AddParams)
+	var pstr string
+	for k, v := range l.AddParams {
+		if len(pstr) == 0 {
+			pstr = fmt.Sprintf("%v:%v", k, v)
+		} else {
+			pstr = fmt.Sprintf("%v,%v:%v", pstr, k, v)
+		}
+	}
+	return fmt.Sprintf("%v,user:%v,branch:%v,addedParams:%v", l.Time, l.User, l.Branch, pstr)
 }
 
 type UsedParamType map[uint]*StLogType
+
+func (up *UsedParamType) init() {
+	(*up) = make(map[uint]*StLogType)
+}
 
 func (up *UsedParamType) addParams(p []uint, plog *StLogType) {
 	for i := range p {
@@ -77,7 +89,7 @@ func refreshTrack(rev *def.TrackRefresh) (map[string][]string, map[string][]uint
 			for i := range v {
 				if info, ok := used[v[i]]; ok {
 					// conflict
-					slc = append(slc, info.toString())
+					slc = append(slc, fmt.Sprintf("%v:used here:%v", v[i], info.toString()))
 				} else {
 					okslc = append(okslc, v[i])
 					used.addParams([]uint{v[i]}, &log)
@@ -88,13 +100,14 @@ func refreshTrack(rev *def.TrackRefresh) (map[string][]string, map[string][]uint
 				okslc = append(okslc, v[i])
 			}
 			var p UsedParamType
+			p.init()
 			p.addParams(v, &log)
 			trackNum[k] = p
 		}
-		if len(okslc) > 0 {
+		if len(slc) > 0 {
 			cflct[k] = slc
 		}
-		if len(slc) > 0 {
+		if len(okslc) > 0 {
 			addok[k] = okslc
 		}
 	}
