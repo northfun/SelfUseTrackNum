@@ -53,8 +53,7 @@ const MESSAGE_TYPE_Quest = 1
 
 type TrackQuest struct {
 	MessageBase
-	Cmd    string // "CmdType"
-	Params []int  // "ParamType"
+	Cmd string // "CmdType"
 }
 
 func (t *TrackQuest) Init() {
@@ -66,7 +65,7 @@ const MESSAGE_TYPE_Refresh = 2
 
 type TrackRefresh struct {
 	MessageBase
-	Data         map[string][]int
+	Data         map[string][]uint
 	User, Branch string
 }
 
@@ -80,7 +79,7 @@ const MESSAGE_TYPE_RetRefresh = 3
 type TrackRetRefresh struct {
 	MessageBase
 	Conflict map[string][]string // map[cmdName]conflict infos
-	AddOk    map[string][]int
+	AddOk    map[string][]uint
 }
 
 func (t *TrackRetRefresh) Init() {
@@ -92,10 +91,10 @@ const MESSAGE_TYPE_RetQuest = 4
 
 type TrackRetQuest struct {
 	MessageBase
-	Data map[string][]int
+	Data map[string][]uint
 }
 
 func (t *TrackRetQuest) Init() {
 	t.usage = MESSAGE_TYPE_RetQuest
-	t.Data = make(map[string][]int)
+	t.Data = make(map[string][]uint)
 }

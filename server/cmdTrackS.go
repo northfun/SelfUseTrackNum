@@ -15,29 +15,29 @@ const LOG_FILE = "track.log"
 
 type StLogType struct {
 	User, Branch string
-	AddParams    map[string][]int
-	Time         int64
+	AddParams    map[string][]uint
+	Time         uint
 }
 
 func (l *StLogType) init(rev *def.TrackRefresh) {
-	log.Time = time.Now().Unix()
-	log.Branch = rev.Branch
-	log.User = rev.User
+	l.Time = uint(time.Now().Unix())
+	l.Branch = rev.Branch
+	l.User = rev.User
 }
 
 func (l *StLogType) toString() string {
 	return fmt.Sprintf("%v,user:%v,branch:%v,addedParams:%v", l.Time, l.User, l.Branch, l.AddParams)
 }
 
-type UsedParamType map[int]*StLogType
+type UsedParamType map[uint]*StLogType
 
-func (up *UsedParamType) addParams(p []int, plog *StLogType) {
+func (up *UsedParamType) addParams(p []uint, plog *StLogType) {
 	for i := range p {
 		(*up)[p[i]] = plog
 	}
 }
 
-func (up *UsedParamType) checkParams(p []int) bool {
+func (up *UsedParamType) checkParams(p []uint) bool {
 	for i := range p {
 		if _, find := (*up)[p[i]]; find {
 			return false
@@ -46,9 +46,9 @@ func (up *UsedParamType) checkParams(p []int) bool {
 	return true
 }
 
-func (up *UsedParamType) paramSlc() []int {
-	slc := make([]int, len(*up))
-	var i int
+func (up *UsedParamType) paramSlc() []uint {
+	slc := make([]uint, len(*up))
+	var i uint
 	for k, _ := range *up {
 		slc[i] = k
 		i++
@@ -57,21 +57,22 @@ func (up *UsedParamType) paramSlc() []int {
 }
 
 var trackNum map[string]UsedParamType // map[cmdNum]map[usedParam]
-type TrackLogType map[string][]StLogType
+type TrackLogType map[uint]StLogType  // map[时间戳]
 
 var trackLog TrackLogType // map[cmdNum][]logs
 
 // 返回冲突信息
-func refreshTrack(rev *def.TrackRefresh) (map[string][]string, map[string][]int) {
-	var logs []StLogType
-	var ok bool
+func refreshTrack(rev *def.TrackRefresh) (map[string][]string, map[string][]uint) {
 	var log StLogType
 	log.init(rev)
 	cflct := make(map[string][]string)
-	addok := make(map[string][]int)
+	addok := make(map[string][]uint)
 	for k, v := range rev.Data {
-		slc := make([]string)
-		okslc := make([]int)
+		if len(v) == 0 {
+			continue
+		}
+		slc := make([]string, 0)
+		okslc := make([]uint, 0)
 		if used, ok := trackNum[k]; ok {
 			for i := range v {
 				if info, ok := used[v[i]]; ok {
@@ -79,7 +80,7 @@ func refreshTrack(rev *def.TrackRefresh) (map[string][]string, map[string][]int)
 					slc = append(slc, info.toString())
 				} else {
 					okslc = append(okslc, v[i])
-					used.addParams([]int(v[i]))
+					used.addParams([]uint{v[i]}, &log)
 				}
 			}
 		} else {
@@ -87,7 +88,7 @@ func refreshTrack(rev *def.TrackRefresh) (map[string][]string, map[string][]int)
 				okslc = append(okslc, v[i])
 			}
 			var p UsedParamType
-			p.addParams(v)
+			p.addParams(v, &log)
 			trackNum[k] = p
 		}
 		if len(okslc) > 0 {
@@ -98,21 +99,17 @@ func refreshTrack(rev *def.TrackRefresh) (map[string][]string, map[string][]int)
 		}
 	}
 	if len(addok) > 0 {
-		logs.AddParams = addok
-		if logs, ok = trackLog[rev.Cmd]; !ok {
-			logs = make([]StLogType, 0, LOG_MAX_NUM)
-		}
-		logs = append(logs, log)
-		trackLog[rev.Cmd] = logs
+		log.AddParams = addok
+		trackLog[log.Time] = log
 		saveData() // TODO
 	}
 	return cflct, addok
 }
 
-func usedParam(cmd string) []int {
+func usedParam(cmd string) []uint {
 	if pmap, ok := trackNum[cmd]; ok {
-		var i int
-		params := make([]int, len(pmap))
+		var i uint
+		params := make([]uint, len(pmap))
 		for p, _ := range pmap {
 			params[i] = p
 			i++
@@ -132,26 +129,30 @@ func getParams(cmd string) UsedParamType {
 func handleConnection(conn net.Conn) {
 	var user TrackSUser
 	user.conn = conn
-	user.dealRev()
+	user.do()
 	fmt.Println("deal from ", conn.RemoteAddr())
 }
 
 func initData() bool {
 	trackNum = make(map[string]UsedParamType)
-	trackLog = make(map[string][]StLogType)
+	trackLog = make(map[uint]StLogType)
 	if ddbuf, err := ioutil.ReadFile(LOG_FILE); err == nil {
 		if err := json.Unmarshal(ddbuf, &trackLog); err != nil {
 			fmt.Printf("unmarshal file:%v err:%v\n", LOG_FILE, err)
 			return false
 		}
-		for k, v := range trackLog {
-			st := make(map[int]*StLogType)
-			for i := range v {
-				for j := range v[i].Params {
-					st[v[i].Params[j]] = &v[i]
+		var ok bool
+		var st map[uint]*StLogType
+		for _, v := range trackLog {
+			for key, pslc := range v.AddParams {
+				if st, ok = trackNum[key]; !ok {
+					st = make(map[uint]*StLogType)
+					trackNum[key] = st
+				}
+				for j := range pslc {
+					st[pslc[j]] = &v
 				}
 			}
-			trackNum[k] = st
 		}
 	} else {
 		fmt.Printf("read file-%v err:%v\n", LOG_FILE, err)
