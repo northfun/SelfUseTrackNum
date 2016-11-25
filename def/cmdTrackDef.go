@@ -103,3 +103,27 @@ func (t *TrackRetQuest) Init() {
 	t.usage = MESSAGE_TYPE_RetQuest
 	t.Data = make(map[string][]uint)
 }
+
+// C->S 删除记录
+const MESSAGE_TYPE_ReqDelTrack = 5
+
+type TrackReqDelTrack struct {
+	MessageBase
+	Key uint
+}
+
+func (t *TrackReqDelTrack) Init() {
+	t.usage = MESSAGE_TYPE_ReqDelTrack
+}
+
+// S->C 删除记录
+const MESSAGE_TYPE_RetDelTrack = 6
+
+type TrackRetDelTrack struct {
+	MessageBase
+	Res string
+}
+
+func (t *TrackRetDelTrack) Init() {
+	t.usage = MESSAGE_TYPE_RetDelTrack
+}

@@ -53,6 +53,13 @@ func (u *TrackSUser) dealRev(usage uint, data []byte) {
 		send.Init()
 		send.Conflict, send.AddOk = refreshTrack(&rev)
 		u.sendToMe(&send)
+	case def.MESSAGE_TYPE_ReqDelTrack:
+		var rev def.TrackReqDelTrack
+		json.Unmarshal(data, &rev)
+		var send def.TrackRetDelTrack
+		send.Init()
+		send.Res = delTrack(rev.Key)
+		u.sendToMe(&send)
 	default:
 		fmt.Println("err usage")
 	}

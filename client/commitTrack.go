@@ -24,6 +24,13 @@ func ReqQuest(c string) {
 	askServer(&send)
 }
 
+func ReqDel(key uint) {
+	var send def.TrackReqDelTrack
+	send.Init()
+	send.Key = key
+	askServer(&send)
+}
+
 func askServer(m def.Message_itfc) {
 	saddr := fmt.Sprintf("%v:%v", def.SERVER_IP, def.SERVER_PORTS)
 	conn, err := net.Dial("tcp", saddr)

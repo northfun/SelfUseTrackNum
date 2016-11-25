@@ -139,6 +139,12 @@ func getParams(cmd string) UsedParamType {
 	return nil
 }
 
+// TODO
+func delTrack(key string) string {
+	return "404"
+}
+
+// TODO 可改成并发
 func handleConnection(conn net.Conn) {
 	var user TrackSUser
 	user.conn = conn
