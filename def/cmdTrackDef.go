@@ -8,7 +8,7 @@ import (
 )
 
 const SERVER_PORTS = 10777
-const SERVER_IP = "127.0.0.1"
+const SERVER_IP = "192.168.1.236"
 
 const COMMIT_LOG_ERR = "err"
 const COMMIT_LOG_OK = "ok"
@@ -85,6 +85,7 @@ type TrackRetRefresh struct {
 	MessageBase
 	Conflict map[string][]string // map[cmdName]conflict infos
 	AddOk    map[string][]uint
+	Key      string
 }
 
 func (t *TrackRetRefresh) Init() {
@@ -109,7 +110,7 @@ const MESSAGE_TYPE_ReqDelTrack = 5
 
 type TrackReqDelTrack struct {
 	MessageBase
-	Key uint
+	Key string
 }
 
 func (t *TrackReqDelTrack) Init() {

@@ -51,11 +51,16 @@ func (u *TrackSUser) dealRev(usage uint, data []byte) {
 		json.Unmarshal(data, &rev)
 		var send def.TrackRetRefresh
 		send.Init()
-		send.Conflict, send.AddOk = refreshTrack(&rev)
+		send.Conflict, send.AddOk, send.Key = refreshTrack(&rev)
 		u.sendToMe(&send)
 	case def.MESSAGE_TYPE_ReqDelTrack:
 		var rev def.TrackReqDelTrack
 		json.Unmarshal(data, &rev)
+
+		if len(rev.Key) == 0 {
+			_ = rev.Key[5]
+		}
+
 		var send def.TrackRetDelTrack
 		send.Init()
 		send.Res = delTrack(rev.Key)

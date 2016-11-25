@@ -1,0 +1,16 @@
+Panic: runtime error: index out of range
+goroutine 20 [running]:
+tracks/tools.DumpStack()
+	/Users/fbs/prj/go/src/tracks/tools/tools.go:16 +0xf2
+panic(0x12a380, 0xc42000c110)
+	/usr/local/go/src/runtime/panic.go:458 +0x243
+main.(*TrackSUser).dealRev(0xc420047e90, 0x5, 0xc4200c6002, 0xa, 0xffffe)
+	/Users/fbs/prj/go/src/tracks/server/cmdTrackSUser.go:61 +0x603
+main.(*TrackSUser).do(0xc420047e90)
+	/Users/fbs/prj/go/src/tracks/server/cmdTrackSUser.go:27 +0x13e
+main.handleConnection(0x1e5ba0, 0xc420094040)
+	/Users/fbs/prj/go/src/tracks/server/cmdTrackS.go:171 +0x69
+main.loop(0x1e4a20, 0xc420094038)
+	/Users/fbs/prj/go/src/tracks/server/cmdTrackS.go:227 +0x161
+created by main.main
+	/Users/fbs/prj/go/src/tracks/server/cmdTrackS.go:242 +0x14e

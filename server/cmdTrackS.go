@@ -6,8 +6,10 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"sync"
 	"time"
 	"tracks/def"
+	"tracks/tools"
 )
 
 const LOG_MAX_NUM = 1 << 8
@@ -25,6 +27,10 @@ func (l *StLogType) init(rev *def.TrackRefresh) {
 	l.User = rev.User
 }
 
+func (l *StLogType) key() string {
+	return fmt.Sprintf("%v_%v_%v", l.Time, l.Branch, l.User)
+}
+
 func (l *StLogType) toString() string {
 	var pstr string
 	for k, v := range l.AddParams {
@@ -34,7 +40,7 @@ func (l *StLogType) toString() string {
 			pstr = fmt.Sprintf("%v,%v:%v", pstr, k, v)
 		}
 	}
-	return fmt.Sprintf("%v,user:%v,branch:%v,addedParams:%v", l.Time, l.User, l.Branch, pstr)
+	return fmt.Sprintf("key:%v,user:%v,branch:%v,addedParams:%v", l.key(), l.User, l.Branch, pstr)
 }
 
 type UsedParamType map[uint]*StLogType
@@ -68,13 +74,13 @@ func (up *UsedParamType) paramSlc() []uint {
 	return slc
 }
 
-var trackNum map[string]UsedParamType // map[cmdNum]map[usedParam]
-type TrackLogType map[uint]StLogType  // map[时间戳]
+var trackNum map[string]UsedParamType  // map[cmdNum]map[usedParam]
+type TrackLogType map[string]StLogType // map[key]
 
 var trackLog TrackLogType // map[cmdNum][]logs
 
 // 返回冲突信息
-func refreshTrack(rev *def.TrackRefresh) (map[string][]string, map[string][]uint) {
+func refreshTrack(rev *def.TrackRefresh) (map[string][]string, map[string][]uint, string) {
 	var log StLogType
 	log.init(rev)
 	cflct := make(map[string][]string)
@@ -89,7 +95,7 @@ func refreshTrack(rev *def.TrackRefresh) (map[string][]string, map[string][]uint
 			for i := range v {
 				if info, ok := used[v[i]]; ok {
 					// conflict
-					slc = append(slc, fmt.Sprintf("%v:used here:%v", v[i], info.toString()))
+					slc = append(slc, fmt.Sprintf("%v:used here:%v", v[i], info.key()))
 				} else {
 					okslc = append(okslc, v[i])
 					used.addParams([]uint{v[i]}, &log)
@@ -111,12 +117,14 @@ func refreshTrack(rev *def.TrackRefresh) (map[string][]string, map[string][]uint
 			addok[k] = okslc
 		}
 	}
+	var key string
 	if len(addok) > 0 {
 		log.AddParams = addok
-		trackLog[log.Time] = log
+		key = log.key()
+		trackLog[key] = log
 		saveData() // TODO
 	}
-	return cflct, addok
+	return cflct, addok, key
 }
 
 func usedParam(cmd string) []uint {
@@ -140,8 +148,20 @@ func getParams(cmd string) UsedParamType {
 }
 
 // TODO
-func delTrack(key uint) string {
-	return "404"
+func delTrack(key string) string {
+	if track, ok := trackLog[key]; ok {
+		for k, v := range track.AddParams {
+			if t, ok := trackNum[k]; ok {
+				for i := range v {
+					delete(t, v[i])
+				}
+			}
+		}
+		delete(trackLog, key)
+		saveData()
+		return track.toString()
+	}
+	return "not found"
 }
 
 // TODO 可改成并发
@@ -154,7 +174,7 @@ func handleConnection(conn net.Conn) {
 
 func initData() bool {
 	trackNum = make(map[string]UsedParamType)
-	trackLog = make(map[uint]StLogType)
+	trackLog = make(map[string]StLogType)
 	if ddbuf, err := ioutil.ReadFile(LOG_FILE); err == nil {
 		if err := json.Unmarshal(ddbuf, &trackLog); err != nil {
 			fmt.Printf("unmarshal file:%v err:%v\n", LOG_FILE, err)
@@ -183,7 +203,29 @@ func saveData() {
 	if bys, err := json.Marshal(&trackLog); err == nil {
 		ioutil.WriteFile(LOG_FILE, bys, 0644)
 	} else {
-		fmt.Println("json save err")
+		fmt.Println("json save err:", err)
+	}
+
+	//	if bys, err := json.Marshal(&trackLog); err == nil {
+	//		ioutil.WriteFile(LOG_FILE, bys, 0644)
+	//	} else {
+	//		fmt.Println("json save err")
+	//	}
+}
+
+var wg_loop sync.WaitGroup
+
+func loop(ln net.Listener) {
+	defer tools.DumpStack()
+	defer wg_loop.Done()
+	for {
+		fmt.Println("wait ...")
+		conn, err := ln.Accept()
+		if err != nil {
+			log.Fatal("get client connection error: ", err)
+		}
+		handleConnection(conn)
+		// go handleConnection(conn)
 	}
 }
 
@@ -195,14 +237,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer saveData()
 	for {
-		fmt.Println("wait ...")
-		conn, err := ln.Accept()
-		if err != nil {
-			log.Fatal("get client connection error: ", err)
-		}
-		handleConnection(conn)
-		// go handleConnection(conn)
+		wg_loop.Add(1)
+		go loop(ln)
+		wg_loop.Wait()
 	}
 }
