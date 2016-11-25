@@ -3,7 +3,7 @@ for self use
 
 cd $GOPATH/src
 
-git clone http://192.168.1.201:3000/fbs/CmdTrackTool.git tracks
+git clone https://github.com/northfun/SelfUseTrackNum.git tracks
 
 Server:
 
