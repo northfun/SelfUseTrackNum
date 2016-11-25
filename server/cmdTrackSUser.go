@@ -17,7 +17,7 @@ func (u *TrackSUser) sendToMe(m def.Message_itfc) {
 
 func (u *TrackSUser) do() {
 	defer u.conn.Close()
-	bts := make([]byte, 1<<10)
+	bts := make([]byte, 1<<20)
 	num, err := u.conn.Read(bts)
 	if err != nil {
 		fmt.Println("read err 1", err)

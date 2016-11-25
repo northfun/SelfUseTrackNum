@@ -140,7 +140,7 @@ func getParams(cmd string) UsedParamType {
 }
 
 // TODO
-func delTrack(key string) string {
+func delTrack(key uint) string {
 	return "404"
 }
 
