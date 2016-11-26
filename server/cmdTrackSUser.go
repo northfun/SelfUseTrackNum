@@ -37,13 +37,11 @@ func (u *TrackSUser) dealRev(usage uint, data []byte) {
 		var send def.TrackRetQuest
 		send.Init()
 		if len(rev.Cmd) > 0 {
-			if ps := getParams(rev.Cmd); ps != nil {
-				send.Data[rev.Cmd] = ps.paramSlc()
+			if ps := sdt.track.GetParams(rev.Cmd); ps != nil {
+				send.Data[rev.Cmd] = ps.ParamSlc()
 			}
 		} else {
-			for k, v := range trackNum {
-				send.Data[k] = v.paramSlc()
-			}
+			send.Data = sdt.track.GetAllSlc()
 		}
 		u.sendToMe(&send)
 	case def.MESSAGE_TYPE_Refresh:
@@ -51,14 +49,14 @@ func (u *TrackSUser) dealRev(usage uint, data []byte) {
 		json.Unmarshal(data, &rev)
 		var send def.TrackRetRefresh
 		send.Init()
-		send.Conflict, send.AddOk, send.Key = refreshTrack(&rev)
+		send.Conflict, send.AddOk, send.Key = sdt.track.RefreshTrack(&rev)
 		u.sendToMe(&send)
 	case def.MESSAGE_TYPE_ReqDelTrack:
 		var rev def.TrackReqDelTrack
 		json.Unmarshal(data, &rev)
 		var send def.TrackRetDelTrack
 		send.Init()
-		send.Res = delTrack(rev.Key)
+		send.Res = sdt.track.DelTrack(rev.Key)
 		u.sendToMe(&send)
 	default:
 		fmt.Println("err usage")
